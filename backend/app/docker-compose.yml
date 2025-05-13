@@ -1,0 +1,110 @@
+#version: '3.9'
+
+services:
+  libros_db1:
+    image: postgres:16
+    container_name: libros_db1
+    environment:
+      POSTGRES_DB: libros
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./database/data/libros_data:/var/lib/postgresql/data
+      - ./database/dump_libros/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+    networks:
+      - buscador_network
+
+  revistas_db1:
+    image: postgres:16
+    container_name: revistas_db1
+    environment:
+      POSTGRES_DB: revistas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./database/data/revistas_data:/var/lib/postgresql/data
+      - ./database/dump_revistas/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - buscador_network
+
+  articulos_db1:
+    image: postgres:16
+    container_name: articulos_db1
+    environment:
+      POSTGRES_DB: articulos
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./database/data/articulos_data:/var/lib/postgresql/data
+      - ./database/dump_articulos/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - buscador_network
+
+  recetas_db1:
+    image: postgres:16
+    container_name: recetas_db1
+    environment:
+      POSTGRES_DB: recetas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5436:5432"
+    volumes:
+      - ./database/data/recetas_data:/var/lib/postgresql/data
+      - ./database/dump_recetas/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - buscador_network
+
+
+
+
+
+
+
+
+
+
+
+  esclavo_libros1:
+    build: 
+      context: ./api/routes/esclavo
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - PORT_BD=5432
+      - DATABASE_TYPE=libros
+      - DETALLES_CAMPOS="isbn,editorial,n_paginas,genero"
+      - DATABASE_HOST=libros_db1
+
+    networks:
+      - buscador_network
+
+  esclavo_recetas1:
+    build: 
+      context: ./api/routes/esclavo
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8004"
+    environment:
+      - PORT=8004
+      - PORT_BD=5432
+      - DATABASE_TYPE=recetas
+      - DETALLES_CAMPOS="ingredientes,tiempo_preparacion,dificultad,pasos"
+      - DATABASE_HOST=recetas_db1
+
+
+    networks:
+      - buscador_network
+
+networks:
+  buscador_network:
+    driver: bridge

@@ -1,0 +1,6 @@
+./backend/app/database/data
+./backend/app/database/dump_articulos
+./backend/app/database/dump_libros
+./backend/app/database/dump_peliculas
+./backend/app/database/dump_recetas
+./backend/app/database/dump_revistas
