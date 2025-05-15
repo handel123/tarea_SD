@@ -1,6 +1,7 @@
-./backend/app/database/data
-./backend/app/database/dump_articulos
-./backend/app/database/dump_libros
-./backend/app/database/dump_peliculas
-./backend/app/database/dump_recetas
-./backend/app/database/dump_revistas
+backend/app/database/
+backend/app/logs/
+backend/app/api/routes/__pycache__/
+backend/app/api/routes/esclavo/__pycache__/
+backend/app/api/routes/maestro/__pycache__/
+app/database/
+app/logs/
