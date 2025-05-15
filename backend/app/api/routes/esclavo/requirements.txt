@@ -3,3 +3,4 @@ pydantic
 asyncpg
 python-dotenv
 uvicorn
+Pyro5

@@ -1,5 +1,7 @@
 #version: '3.9'
 
+### BASES DE DATOS POSTGRESQL
+
 services:
   libros_db1:
     image: postgres:16
@@ -68,9 +70,24 @@ services:
 
 
 
+### MAESTROS Y ESCLAVOS
 
 
 
+  maestro:
+    build: 
+      context: ./api/routes/maestro
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - SLAVE_HOSTS_JSON={"libros":"esclavo_libros1:8003","recetas":"esclavo_recetas1:8004"}
+
+    networks:
+      - buscador_network
+
+## ESCLAVOS
 
   esclavo_libros1:
     build: 
@@ -84,6 +101,9 @@ services:
       - DATABASE_TYPE=libros
       - DETALLES_CAMPOS="isbn,editorial,n_paginas,genero"
       - DATABASE_HOST=libros_db1
+      - RMI_SERVER_URI=PYRONAME:recolector_logs
+    depends_on:
+      - libros_db1
 
     networks:
       - buscador_network
@@ -100,10 +120,45 @@ services:
       - DATABASE_TYPE=recetas
       - DETALLES_CAMPOS="ingredientes,tiempo_preparacion,dificultad,pasos"
       - DATABASE_HOST=recetas_db1
+      - RMI_SERVER_URI=PYRONAME:recolector_logs
+
+    depends_on:
+      - recetas_db1
 
 
     networks:
       - buscador_network
+
+## LOGGING
+
+
+
+  pyro_nameserver:
+
+    build:
+      context: ./config/pyro_nameserver
+      dockerfile: Dockerfile
+
+    
+    networks:
+      - buscador_network
+
+  recolector_logs:
+    build: 
+      context: ./api/routes/recolector_logs
+      dockerfile: Dockerfile
+    environment:
+      - LOG_FILE=/logs/recolector_logs.csv
+    ports:
+      - "9090:9090"  
+    networks:
+      - buscador_network
+
+    volumes:
+      - ./logs:/logs
+    depends_on:
+      - pyro_nameserver
+
 
 networks:
   buscador_network:

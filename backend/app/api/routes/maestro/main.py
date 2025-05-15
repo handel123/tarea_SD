@@ -6,8 +6,16 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 from enum import Enum
 import asyncio
+from dotenv import load_dotenv
+import json
+import os
+
 
 app = FastAPI()
+load_dotenv()
+
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -15,19 +23,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+SLAVE_HOSTS = json.loads(os.getenv("SLAVE_HOSTS_JSON", "{}"))
 
-SLAVE_PORTS = {
-    "libros": 8003,
-    "recetas": 8004,
-}
+SLAVES = {tipo: f"http://{host}" for tipo, host in SLAVE_HOSTS.items()}
 
-SLAVES = {tipo: f"http://localhost:{port}" 
-          for tipo, port in SLAVE_PORTS.items()}
 
-class RangoEtario(str, Enum):
-    NINOS = "10-15"
-    JOVENES = "16-25"
-    ADULTOS = "26+"
+
 
 class Documento(BaseModel):
     id: int
@@ -40,52 +41,50 @@ class Documento(BaseModel):
     rango_etario: str
     disponible: bool
     tipo: str
-    score: float
+    score: Optional[float] = None
 
 async def calcular_score(titulo: str, palabras_clave: List[str], 
-                        query_terms: List[str], rango_usuario: str, 
-                        tipo_doc: str) -> float:
+                         descripcion: str, query_terms: List[str], 
+                         rango_usuario: str, rango_doc: str) -> float:
+    
     titulo_lower = titulo.lower()
-    score = sum(term.lower() in titulo_lower for term in query_terms) * 2.0
+    descripcion_lower = descripcion.lower()
+    palabras_clave_lower = [kw.lower() for kw in palabras_clave]
     
-    score += sum(any(term.lower() in kw.lower() for kw in palabras_clave) 
-             for term in query_terms) * 1.0
+    score = sum(term.lower() in titulo_lower for term in query_terms) * 3.0
     
-    if rango_usuario == RangoEtario.NINOS and tipo_doc == "libro":
-        score *= 1.5
-    elif rango_usuario == RangoEtario.JOVENES and tipo_doc == "articulo":
-        score *= 1.3
-    elif rango_usuario == RangoEtario.ADULTOS and tipo_doc == "revista":
-        score *= 1.2
+    score += sum(any(term.lower() in kw for kw in palabras_clave_lower) 
+                 for term in query_terms) * 2.0
     
+    score += sum(term.lower() in descripcion_lower for term in query_terms) * 1.0
+    
+    if rango_doc == rango_usuario:
+        score += 2.0
+
     return score
 
 
 
 
-@app.get("/query/titulo")
-async def buscar_por_titulo(
-    titulo: str = "",
-    rango_etario: RangoEtario = RangoEtario.ADULTOS
+@app.get("/query/tipo")
+async def buscar_por_tipo_doc(
+    tipo_doc: str,
 ) -> List[Documento]:
-    if not titulo.strip():
-        raise HTTPException(status_code=400, detail="Debe proporcionar un título válido.")
+    tipos_solicitados = [t.strip() for t in tipo_doc.split(",") if t.strip() in SLAVES]
+    if not tipos_solicitados:
+        raise HTTPException(status_code=400, detail="tipo_doc inválido o no disponible.")
 
-    query_terms = titulo.strip().split()
     resultados = []
-
     async with httpx.AsyncClient(timeout=30.0) as client:
-
-        async def consultar_esclavo(tipo: str):
+        async def consultar(tipo):
             try:
                 url = f"{SLAVES[tipo]}/buscar"
-                response = await client.get(url, params={"titulo": titulo})
+                response = await client.get(url, params={"titulo": ""})
                 return tipo, response
-            except Exception as e:
-                print(f"Error consultando esclavo {tipo}: {e}")
+            except Exception:
                 return tipo, None
 
-        tasks = [consultar_esclavo(tipo) for tipo in SLAVES.keys()]
+        tasks = [consultar(tipo) for tipo in tipos_solicitados]
         responses = await asyncio.gather(*tasks)
 
         for tipo, response in responses:
@@ -93,54 +92,8 @@ async def buscar_por_titulo(
                 continue
 
             for doc in response.json():
-                score = await calcular_score(
-                    doc["titulo"],
-                    doc["palabras_clave"],
-                    query_terms,
-                    rango_etario,
-                    tipo
-                )
-                resultados.append(Documento(**doc, tipo=tipo, score=score))
+                resultados.append(Documento(**doc, tipo=tipo))
 
-    resultados.sort(key=lambda x: x.score, reverse=True)
-    return resultados
-
-
-@app.get("/query/tipo")
-async def buscar_por_tipo_doc(
-    tipo_doc: str,
-    rango_etario: RangoEtario = RangoEtario.ADULTOS
-) -> List[Documento]:
-    tipos_solicitados = [t.strip() for t in tipo_doc.split() if t.strip() in SLAVES]
-    if not tipos_solicitados:
-        raise HTTPException(status_code=400, detail="tipo_doc inválido o no disponible.")
-
-    resultados = []
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        tasks = []
-        for tipo in tipos_solicitados:
-            url = f"{SLAVES[tipo]}/buscar"
-            tasks.append(client.get(url))
-
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for tipo, response in zip(tipos_solicitados, responses):
-            if isinstance(response, Exception):
-                print(f"Error consultando esclavo {tipo}: {response}")
-                continue
-
-            if response.status_code == 200:
-                for doc in response.json():
-                    score = await calcular_score(
-                        doc["titulo"],
-                        doc["palabras_clave"],
-                        [],
-                        rango_etario,
-                        tipo
-                    )
-                    resultados.append(Documento(**doc, tipo=tipo, score=score))
-
-    resultados.sort(key=lambda x: x.score, reverse=True)
     return resultados
 
 if __name__ == "__main__":

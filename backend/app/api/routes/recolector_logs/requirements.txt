@@ -4,4 +4,4 @@ asyncpg
 python-dotenv
 uvicorn
 httpx
-Pyro5
+

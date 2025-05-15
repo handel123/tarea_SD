@@ -22,13 +22,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-## VARIABLES DE ENTORNO
-#HOST = os.environ.get("HOST")
-PORT_BD = int(os.environ.get("PORT_BD")) # 5433 
-DATABASE_TYPE = os.environ.get("DATABASE_TYPE") # "libros"
-DETALLES_CAMPOS = os.environ.get("DETALLES_CAMPOS") # "isbn, editorial, n_paginas, genero"
 
-# Configuración de la base de datos
+PORT_BD = int(os.environ.get("PORT_BD")) 
+DATABASE_TYPE = os.environ.get("DATABASE_TYPE")
+DETALLES_CAMPOS = os.environ.get("DETALLES_CAMPOS")
 
 DB_CONFIG = {
 
@@ -37,14 +34,16 @@ DB_CONFIG = {
     "detalles_campos": DETALLES_CAMPOS.split(",") if DETALLES_CAMPOS else [],
 }
 
-print(DB_CONFIG["db_url"])
-print(DB_CONFIG["detalles_campos"])
+
 
 
 async def get_db_connection():
     return await asyncpg.connect(DB_CONFIG["db_url"])
 
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "port": os.getenv("PORT")}
 
 
 @app.get("/buscar")
@@ -105,29 +104,17 @@ async def log_requests(request: Request, call_next):
     if request.url.path == "/buscar":
         start_time = datetime.now()
         
-        # Datos básicos para el log
-        log_data = {
-            "timestamp_ini": start_time,
-            "query_busqueda": str(request.url),
-            "parametros": dict(request.query_params),
-            "ip_cliente": request.client.host if request.client else None
-        }
         
-        # Procesar la solicitud
         response = await call_next(request)
         
-        # Solo registrar logs para respuestas exitosas
         if response.status_code == 200:
             try:
-                # Leer el contenido de la respuesta
                 response_body = b""
                 async for chunk in response.body_iterator:
                     response_body += chunk
                 
-                # Parsear el JSON si es necesario
                 results = json.loads(response_body.decode()) if response_body else []
                 
-                # Restaurar la respuesta original
                 response = Response(
                     content=response_body,
                     status_code=200,
@@ -135,7 +122,6 @@ async def log_requests(request: Request, call_next):
                     headers=dict(response.headers)
                 )
                 
-                # Registrar el log
                 end_time = datetime.now()
                 doc_ids = [doc['id'] for doc in results] if results else None
                 

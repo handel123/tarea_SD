@@ -1,10 +1,17 @@
-FROM python:latest
+
+
+FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY ./requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 COPY . .
 
-CMD uvicorn main:app --host 0.0.0.0 --port $PORT
+RUN pip install -r requirements.txt
+RUN chmod +x start.sh
+
+EXPOSE ${PORT}
+
+
+
+CMD ["sh", "start.sh"]
+
