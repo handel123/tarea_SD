@@ -14,6 +14,8 @@ DB_CONFIG = {
     "db_url": f"postgresql://postgres:postgres@{os.getenv('DATABASE_HOST')}:{os.getenv('PORT_BD')}/{os.getenv('DATABASE_TYPE')}",
 }
 
+
+
 RMI_SERVER_NAME = "recolector_logs"
 PYRO_NS_HOST = "pyro_nameserver"
 PYRO_NS_PORT = 9090
